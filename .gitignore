@@ -1,5 +1,9 @@
 .env
+
 /v_env
 /video
 /audio
 /background
+/results
+/images
+/music
