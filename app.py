@@ -1,7 +1,8 @@
+import time
 import praw
 import os
 from classes.Story import Story
-# from classes.Transcriber import Transriber
+from utils.check_post_id import doesPostExist
 from utils.clean_text import cleanText
 from utils.directories import makeDirectories, removeUnwantedContent
 from dotenv import load_dotenv
@@ -36,43 +37,32 @@ def get_information():
         stories[i].set_post_author(author)
         stories[i].set_font_path("fonts/Roboto-BlackItalic.ttf")
         print(subreddits[i].title)
-        print(len(subreddits[i].selftext))
         print(subreddits[i].url)
 
 def create_reddit_stories():
     for s in stories:
-        s.create_voiceover()
-        s.create_video()
-        s.transcribe_video()
-        s.add_background_music()
-        s.generate_intro_clip()
-        s.overlay_intro_clip()
-        break
+        if doesPostExist(s.post_id):
+            continue
+        try:
+            start = time.time()
+            s.create_voiceover()
+            s.create_video()
+            s.transcribe_video()
+            s.add_background_music()
+            s.generate_intro_clip()
+            s.overlay_intro_clip()
+            end = time.time()
+            print(end - start, len(s.submission_self_text))
+        except Exception as e:
+            print(e)
 
-# def createCaptionsForAllStories():
-#     for s in stories:
-#         if not s.video_file_path or not s.audio_file_path:
-#             continue
-#         transcriber = Transriber(model_path="base", video_path=s.video_file_path, 
-#                                  audio_path=s.audio_file_path)
-#         transcriber.transcribe_video()
-#         transcriber.create_video()
+
 
 
 get_information()
-# get_screenshots()
 create_reddit_stories()
 
 
 directories_to_remove = ["audio", "videos"] # can also add "images" but i decide to keep them
 files_to_remove = ["intro_clip.mp4", "text_frame.png", "title.mp3", "body.mp3"]
 removeUnwantedContent(directories=directories_to_remove, files=files_to_remove)
-
-
-# story = Story()
-
-# story.post_title = "Testing testing and more testing"
-# story.submission_self_text = "We are the most powerful beings in the universe. We control all of reality. Reality includes time."
-# story.set_post_id("testing")
-# story.set_font_path("fonts/Roboto-BlackItalic.ttf")
-# stories = [story]

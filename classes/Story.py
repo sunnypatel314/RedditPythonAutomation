@@ -8,6 +8,7 @@ from pydub import AudioSegment
 from moviepy.editor import *
 from moviepy.config import change_settings
 from PIL import Image
+from utils.captions import condense_captions
 
 class Story():
     def __init__(self) -> None:
@@ -61,13 +62,13 @@ class Story():
             engine.runAndWait()
 
         voice_over(self.post_title, "title.mp3", 0.97, gender=1)       
-        voice_over(self.submission_self_text, "body.mp3", 1, gender=1)
+        voice_over(self.submission_self_text, "body.mp3", 0.97, gender=1)
         
         audio_title = AudioSegment.from_file("title.mp3")
         audio_body = AudioSegment.from_file("body.mp3")
 
-        silent_pause = AudioSegment.silent(duration=500)
-        silent_pause_start = AudioSegment.silent(duration=350)
+        silent_pause = AudioSegment.silent(duration=150)
+        silent_pause_start = AudioSegment.silent(duration=300)
 
         combined = silent_pause_start + audio_title + silent_pause + audio_body
         combined.export(self.audio_file_path, format="mp3")
@@ -105,10 +106,18 @@ class Story():
         result = whisper.transcribe(model=model, audio=audio, language="en")
         text_clips_array = []
         segments = result["segments"]
+        # for segment in segments:
+        #     condense_segment = condense_captions(segment=segment, threshold=9)
+        #     for phrase in condense_segment.keys(): # each value is list [a, b], where a is start time and b is end time
+        #         text_clip = TextClip(txt=phrase, fontsize=90, stroke_color="black", method="caption",
+        #                              stroke_width=5, color="white", font=self.font_path, size=(570, None))
+        #         text_clip = text_clip.set_start(condense_segment[phrase][0]).set_end(condense_segment[phrase][1]).set_position("center")
+        #         text_clips_array.append(text_clip)   
+        segments = result["segments"]
         for segment in segments:
             for word in segment["words"]:
-                text_clip = TextClip(txt=word["text"], fontsize=90, stroke_color="black", 
-                            stroke_width=5, color="white", font=self.font_path)
+                text_clip = TextClip(txt=word["text"], fontsize=90, stroke_color="black", size=(450, None),
+                                     method="caption", stroke_width=5, color="white", font=self.font_path)
                 text_clip = text_clip.set_start(word["start"]).set_end(word["end"]).set_position("center")
                 text_clips_array.append(text_clip)   
 
@@ -147,7 +156,9 @@ class Story():
 
     def generate_intro_clip(self):
         image_header = Image.open("header.png")
+        image_footer = Image.open("footer.png")
         header_w, header_h = image_header.size
+        footer_w, footer_h = image_footer.size
         desired_clip_width = int(720*0.8)
         tc = TextClip(txt=self.post_title, fontsize=45, method="caption", color="black", kerning=-2,
               font="Arial-SemiBold", bg_color="white", size=(desired_clip_width, None))
@@ -156,10 +167,11 @@ class Story():
         text_frame = Image.fromarray(frame)
         text_frame.save("text_frame.png")
 
-        new_image = Image.new("RGB", (max(header_w, text_frame.width), 
-                                      header_h + text_frame.height + 50), color="white")
-        new_image.paste(image_header, (0, 25))
-        new_image.paste(text_frame, (0, header_h + 25))
+        new_image = Image.new("RGB", (max(header_w, text_frame.width, footer_w) + 40, 
+                                      header_h + text_frame.height + footer_h + 55), color="white")
+        new_image.paste(image_header, (20, 15))
+        new_image.paste(text_frame, (20, header_h + 15 + 10))
+        new_image.paste(image_footer, (20, header_h + 15 + 10 + text_frame.height + 20))
         new_image.save(self.image_file_path)
 
         audio_title_duration = librosa.get_duration(filename="title.mp3")
@@ -174,11 +186,6 @@ class Story():
         composite_clip.write_videofile(f"results/{self.post_id}.mp4")
 
 
-    # def get_title_screenshots(self, browser=None):
-    #     if (not self.screenshot_file_path or not self.post_url 
-    #         or not browser or not self.post_id):
-    #         return
-    #     getTitleScreenShots(browser, self.post_url, self.post_id, self.screenshot_file_path)
 
 
         
