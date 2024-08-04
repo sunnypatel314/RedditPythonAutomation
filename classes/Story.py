@@ -7,7 +7,7 @@ import whisper_timestamped as whisper
 from pydub import AudioSegment
 from moviepy.editor import *
 from moviepy.config import change_settings
-from PIL import Image
+from PIL import Image, ImageDraw, ImageOps
 from utils.captions import condense_captions
 
 class Story():
@@ -68,7 +68,7 @@ class Story():
         audio_body = AudioSegment.from_file("body.mp3")
 
         silent_pause = AudioSegment.silent(duration=150)
-        silent_pause_start = AudioSegment.silent(duration=300)
+        silent_pause_start = AudioSegment.silent(duration=250)
 
         combined = silent_pause_start + audio_title + silent_pause + audio_body
         combined.export(self.audio_file_path, format="mp3")
@@ -81,13 +81,13 @@ class Story():
         GAMEPLAY_FILE_PATH = f"background/{game}.mp4"
         GAMEPLAY_DURATION = int(VideoFileClip(GAMEPLAY_FILE_PATH).duration)
 
-        audio_duration = int(librosa.get_duration(path=self.audio_file_path)) + 1
+        audio_duration = int(librosa.get_duration(path=self.audio_file_path))
         if audio_duration > GAMEPLAY_DURATION:
             print("The story is too long.")
             return
-        if audio_duration < 30:
-            print("The story is too short")
-            return
+        # if audio_duration < 30:
+        #     print("The story is too short")
+        #     return
         
         start_point = random.randint(0, GAMEPLAY_DURATION - audio_duration)
         end_point = start_point + audio_duration
@@ -106,20 +106,22 @@ class Story():
         result = whisper.transcribe(model=model, audio=audio, language="en")
         text_clips_array = []
         segments = result["segments"]
-        # for segment in segments:
-        #     condense_segment = condense_captions(segment=segment, threshold=9)
-        #     for phrase in condense_segment.keys(): # each value is list [a, b], where a is start time and b is end time
-        #         text_clip = TextClip(txt=phrase, fontsize=90, stroke_color="black", method="caption",
-        #                              stroke_width=5, color="white", font=self.font_path, size=(570, None))
-        #         text_clip = text_clip.set_start(condense_segment[phrase][0]).set_end(condense_segment[phrase][1]).set_position("center")
-        #         text_clips_array.append(text_clip)   
-        segments = result["segments"]
         for segment in segments:
-            for word in segment["words"]:
-                text_clip = TextClip(txt=word["text"], fontsize=90, stroke_color="black", size=(450, None),
-                                     method="caption", stroke_width=5, color="white", font=self.font_path)
-                text_clip = text_clip.set_start(word["start"]).set_end(word["end"]).set_position("center")
-                text_clips_array.append(text_clip)   
+            condense_segment = condense_captions(segment=segment, threshold=11)
+            for phrase in condense_segment.keys(): # each value is list [a, b], where a is start time and b is end time
+                text_clip = TextClip(txt=phrase, fontsize=90, stroke_color="black", method="caption",
+                                     stroke_width=5, color="white", font=self.font_path, size=(570, None))
+                text_clip = text_clip.set_start(condense_segment[phrase][0]).set_end(condense_segment[phrase][1]).set_position("center")
+                text_clip = text_clip.crossfadein(0.05).crossfadeout(0.05)
+                text_clips_array.append(text_clip) 
+                  
+        # segments = result["segments"]
+        # for segment in segments:
+        #     for word in segment["words"]:
+        #         text_clip = TextClip(txt=word["text"], fontsize=90, stroke_color="black", size=(int(720*0.8), None),
+        #                              method="caption", stroke_width=5, color="white", font=self.font_path)
+        #         text_clip = text_clip.set_start(word["start"]).set_end(word["end"]).set_position("center")
+        #         text_clips_array.append(text_clip)   
 
         original_clip = VideoFileClip(self.video_file_path)
 
@@ -139,9 +141,10 @@ class Story():
 
         while int(audio_duration) > int(music_duration):
             random_index = random.randint(0, len(bg_music_list) - 1)
-            background_music_path = bg_music_list[random_index]          
+            background_music_path = bg_music_list[random_index]     
+            music_duration = librosa.get_duration(filename=background_music_path)     
         
-        start = random.randint(0, int(music_duration - audio_duration) - 1)
+        start = random.uniform(0.0, music_duration - audio_duration)
         end = audio_duration + start
 
         video = VideoFileClip(f"results/{self.post_id}.mp4")
@@ -160,23 +163,50 @@ class Story():
         header_w, header_h = image_header.size
         footer_w, footer_h = image_footer.size
         desired_clip_width = int(720*0.8)
-        tc = TextClip(txt=self.post_title, fontsize=45, method="caption", color="black", kerning=-2,
-              font="Arial-SemiBold", bg_color="white", size=(desired_clip_width, None))
-        tc = tc.set_position("center").set_duration(1)
+        tc = TextClip(txt=self.post_title, fontsize=35, method="caption", align="West", color="black", 
+            font="Regular", bg_color="white", size=(desired_clip_width, None), kerning=-2)
+        tc = tc.set_position((0, "center")).set_duration(1)
         frame = tc.get_frame(0)
         text_frame = Image.fromarray(frame)
-        text_frame.save("text_frame.png")
+        text_frame.save(f"text_frame.png")
 
         new_image = Image.new("RGB", (max(header_w, text_frame.width, footer_w) + 40, 
-                                      header_h + text_frame.height + footer_h + 55), color="white")
-        new_image.paste(image_header, (20, 15))
-        new_image.paste(text_frame, (20, header_h + 15 + 10))
-        new_image.paste(image_footer, (20, header_h + 15 + 10 + text_frame.height + 20))
+                                      header_h + text_frame.height + footer_h + 30), color="white")
+        new_image.paste(image_header, (20, 0))
+        new_image.paste(text_frame, (20, header_h + 10))
+        new_image.paste(image_footer, (20, header_h + 10 + text_frame.height + 20))
         new_image.save(self.image_file_path)
+        
+        new_image = Image.open(self.image_file_path).convert("RGBA")
+        
+        # Calculate new size with border
+        border_size = 10
+        new_size = (new_image.size[0] + 2 * border_size, new_image.size[1] + 2 * border_size)
+        
+        # Create a new image with border size
+        bordered_image = Image.new("RGBA", new_size, "black")
+        
+        # Paste the original image onto the bordered image
+        bordered_image.paste(new_image, (border_size, border_size))
+        
+        bordered_image.save(self.image_file_path)
+        
+        # border radius code if needed
+        # # Create a mask with rounded corners
+        # mask = Image.new("L", new_size, 0)
+        # draw = ImageDraw.Draw(mask)
+        # draw.rounded_rectangle((0, 0, new_size[0], new_size[1]), border_radius, fill=255)
+        
+        # # Apply the mask to the image
+        # rounded_bordered_image = ImageOps.fit(bordered_image, mask.size, centering=(0.5, 0.5))
+        # rounded_bordered_image.putalpha(mask)
+
+        # # Save the result to the same file path
+        # rounded_bordered_image.save(self.image_file_path, format="PNG")
 
         audio_title_duration = librosa.get_duration(filename="title.mp3")
 
-        image_clip = ImageClip(img=self.image_file_path).set_duration(audio_title_duration)
+        image_clip = ImageClip(img=self.image_file_path).set_duration(audio_title_duration + 0.25)
         image_clip.write_videofile("intro_clip.mp4", fps=24)
     
     def overlay_intro_clip(self):

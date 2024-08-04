@@ -8,7 +8,9 @@ def makeDirectories(directories):
 
 def removeUnwantedContent(directories, files):
     for d in directories:
-        shutil.rmtree(d)
+        if os.path.exists(d):
+            shutil.rmtree(d)
     for f in files:
-        os.remove(f)
+        if os.path.exists(f):
+            os.remove(f)
     

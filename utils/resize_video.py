@@ -54,7 +54,7 @@ def get_frame_size(frame):
     # Get the size of the image
     return image.size # width, height
 
-path = "results/1eh1dj4.mp4"
+path = "results/1ehtmua.mp4"
 frame = extract_frame(path, 1)
 print(get_frame_size(frame))
 # resize_video(path, "gameplay/gta5.mp4", 384, 540)

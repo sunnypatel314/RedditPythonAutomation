@@ -8,7 +8,7 @@ def condense_captions(segment, threshold):
     # print(words)
 
     for word in words:
-        if phrase.endswith("."):
+        if phrase.endswith(". "):
             phrase_array.append(phrase)
             counter_array.append(current_count)
             phrase, current_count = "", 1
@@ -29,7 +29,7 @@ def condense_captions(segment, threshold):
         phrase_array.append(phrase)
         counter_array.append(current_count)
     
-    print(phrase_array, counter_array)
+    # print(phrase_array, counter_array)
     
     words_index, phrase_array_index = 0, 0
     while words_index <= len(words) - 1:
@@ -60,4 +60,4 @@ my_d = {'id': 0, 'seek': 0, 'start': 0.0, 'end': 2.02,
         }       
 
 
-print(condense_captions(my_d, 10))
+# print(condense_captions(my_d, 10))
