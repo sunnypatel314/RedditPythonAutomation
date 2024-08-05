@@ -24,4 +24,12 @@ def cleanText(text):
 
     return text.strip()
 
-
+def containsMultipleParts(text):
+    # Define the pattern to match variations of "Part X" at the end of the string
+    pattern = re.compile(r'\s*part\s?\d+$', re.IGNORECASE)
+    
+    # Search for the pattern in the text
+    match = pattern.search(text)
+    
+    # Return True if the pattern is found, else False
+    return bool(match)

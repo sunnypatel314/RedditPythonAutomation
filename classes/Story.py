@@ -2,6 +2,7 @@ import pyttsx3
 import os
 import librosa
 import random
+import smtplib
 import torch
 import whisper_timestamped as whisper
 from pydub import AudioSegment
@@ -9,6 +10,13 @@ from moviepy.editor import *
 from moviepy.config import change_settings
 from PIL import Image, ImageDraw, ImageOps
 from utils.captions import condense_captions
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Story():
     def __init__(self) -> None:
@@ -77,8 +85,8 @@ class Story():
         if not self.audio_file_path or not self.video_file_path:
             return 
         
-        game = "minecraft"
-        GAMEPLAY_FILE_PATH = f"background/{game}.mp4"
+        games = ["minecraft", "minecraft_2", "minecraft_3"]
+        GAMEPLAY_FILE_PATH = f"background/{games[random.randint(0, len(games)-1)]}.mp4"
         GAMEPLAY_DURATION = int(VideoFileClip(GAMEPLAY_FILE_PATH).duration)
 
         audio_duration = int(librosa.get_duration(path=self.audio_file_path))
@@ -107,12 +115,12 @@ class Story():
         text_clips_array = []
         segments = result["segments"]
         for segment in segments:
-            condense_segment = condense_captions(segment=segment, threshold=11)
+            condense_segment = condense_captions(segment=segment, threshold=10)
             for phrase in condense_segment.keys(): # each value is list [a, b], where a is start time and b is end time
-                text_clip = TextClip(txt=phrase, fontsize=90, stroke_color="black", method="caption",
-                                     stroke_width=5, color="white", font=self.font_path, size=(570, None))
+                text_clip = TextClip(txt=phrase, fontsize=70, stroke_color="black", method="caption",
+                                     stroke_width=4, color="white", font=self.font_path, size=(570, None))
                 text_clip = text_clip.set_start(condense_segment[phrase][0]).set_end(condense_segment[phrase][1]).set_position("center")
-                text_clip = text_clip.crossfadein(0.05).crossfadeout(0.05)
+                # text_clip = text_clip.crossfadein(0.05).crossfadeout(0.05)
                 text_clips_array.append(text_clip) 
                   
         # segments = result["segments"]
@@ -171,10 +179,10 @@ class Story():
         text_frame.save(f"text_frame.png")
 
         new_image = Image.new("RGB", (max(header_w, text_frame.width, footer_w) + 40, 
-                                      header_h + text_frame.height + footer_h + 30), color="white")
-        new_image.paste(image_header, (20, 0))
-        new_image.paste(text_frame, (20, header_h + 10))
-        new_image.paste(image_footer, (20, header_h + 10 + text_frame.height + 20))
+                                      header_h + text_frame.height + footer_h + 40), color="white")
+        new_image.paste(image_header, (20, 10))
+        new_image.paste(text_frame, (20, 10 + header_h + 10))
+        new_image.paste(image_footer, (20, 10 + header_h + 10 + text_frame.height + 20))
         new_image.save(self.image_file_path)
         
         new_image = Image.open(self.image_file_path).convert("RGBA")
@@ -184,7 +192,16 @@ class Story():
         new_size = (new_image.size[0] + 2 * border_size, new_image.size[1] + 2 * border_size)
         
         # Create a new image with border size
-        bordered_image = Image.new("RGBA", new_size, "black")
+        bordered_image = Image.new("RGBA", new_size, "red")
+        
+        # Create a drawing context
+        draw = ImageDraw.Draw(bordered_image)
+
+        # Define the points for the upper right triangle
+        triangle = [(new_size[0], 0), (new_size[0], new_size[1]), (0, 0)]
+
+        # Draw the blue triangle
+        draw.polygon(triangle, fill=(55, 122, 246)) # blue fill
         
         # Paste the original image onto the bordered image
         bordered_image.paste(new_image, (border_size, border_size))
@@ -214,6 +231,40 @@ class Story():
         intro_clip = VideoFileClip("intro_clip.mp4")
         composite_clip = CompositeVideoClip([main_video, intro_clip.set_position(('center', 'center'))])
         composite_clip.write_videofile(f"results/{self.post_id}.mp4")
+    
+    def send_video_via_email(self, recipient_email):
+
+        sender_email = os.environ.get("EMAIL_SENDER")
+        sender_password = os.environ.get("APPLICATION_SPECIFIC_GMAIL_PASSWORD")
+        subject = f'Reddit Story Video #{self.post_id}'
+        body = self.post_title
+
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        # mp4_files = ["results/" + video for video in os.listdir("results")]
+
+        # Set up the MIME
+        message = MIMEMultipart()
+        message['From'] = sender_email
+        message['To'] = recipient_email
+        message['Subject'] = subject
+        message.attach(MIMEText(body, 'plain'))
+    
+        attachment = open(f"results/{self.post_id}.mp4", 'rb')
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(attachment.read())
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f'attachment; filename= {f"results/{self.post_id}.mp4"}')
+        message.attach(part)
+
+        try:
+            server.sendmail(sender_email, recipient_email, message.as_string())
+            print("Email sent successfully!")
+        except Exception as e:
+            print("Error sending email:", e)        
+    
+        server.quit()
 
 
 
