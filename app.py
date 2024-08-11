@@ -15,16 +15,16 @@ reddit = praw.Reddit(
     password=os.environ.get("PASSWORD"),
     user_agent=os.environ.get("USER_AGENT"),
     username=os.environ.get("USERNAME"),
-)           
+)         
 
-name_of_subbreddit, word_count_range = "stories", (1500, 6000)
-posts = list(reddit.subreddit(name_of_subbreddit).top(time_filter="day", limit=5))
+name_of_subbreddit = "stories"
+char_count_min, char_count_max = 700, 3500
+posts = list(reddit.subreddit(name_of_subbreddit).top(time_filter="day", limit=10))
 print([len(p.selftext) for p in posts])
 print([p.title for p in posts])
-posts = [p for p in posts if not p.over_18 # don't include over 18 content
-            and len(p.selftext) >= word_count_range[0] # make sure length is within range
-            and len(p.selftext) <= word_count_range[1]
-            and not containsMultipleParts(p.title.strip())] # make sure it is a whole story
+posts = [p for p in posts if not containsMultipleParts(p.title.strip()) 
+         and len(p.selftext) >= char_count_min # make sure length is within range
+         and len(p.selftext) <= char_count_max]                  
 
 if not posts:
     print("No posts fit the requirements.")
@@ -54,8 +54,6 @@ def get_information():
 # s.set_font_path("fonts/Roboto-Bold.ttf")
 # stories = [s]
 
-# #redditstories #reddit #redditstorytime 
-
 def create_reddit_stories():
     for s in stories:
         if doesPostExist(s.post_id):
@@ -64,20 +62,13 @@ def create_reddit_stories():
         try:
             start = time.time()
             s.create_voiceover()
-            print("created voiceover ", s.post_id)
-            s.create_video()
-            print("created video ", s.post_id) 
-            s.transcribe_video()
-            print("transcribed video ", s.post_id) 
-            s.add_background_music() 
-            print("added background music ", s.post_id)
             s.generate_intro_clip()
-            print("generated intro clip ", s.post_id) 
-            s.overlay_intro_clip()
-            print("overlayed intro clip ", s.post_id) 
+            initial_vid = s.create_video()
+            transcribed_vid = s.transcribe_video(initial_vid)
+            vid_with_bg_music = s.add_background_music(transcribed_vid) 
+            s.overlay_intro_clip(vid_with_bg_music)
             end = time.time()
             print(end - start, len(s.submission_self_text))
-            # print("Sending email ...")
             # s.send_video_via_email(recipient_email="sunnypatel4prez@gmail.com")
         except Exception as e:
             print(e)

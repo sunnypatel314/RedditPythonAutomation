@@ -81,6 +81,8 @@ class Story():
         combined = silent_pause_start + audio_title + silent_pause + audio_body
         combined.export(self.audio_file_path, format="mp3")
         
+        print("created voiceover ", self.post_id)
+        
     def create_video(self):
         if not self.audio_file_path or not self.video_file_path:
             return 
@@ -104,13 +106,16 @@ class Story():
         audio = AudioFileClip(self.audio_file_path)
 
         video = video.set_audio(audio)
-        video.write_videofile(self.video_file_path, codec='libx264', audio_codec='aac')
+        # video.write_videofile(self.video_file_path, codec='libx264', audio_codec='aac')
+        print("created video ", self.post_id) 
+        
+        return video
 
-    def transcribe_video(self, model_size="medium"):
+    def transcribe_video(self, video, model_size="medium"):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(device)
         model = whisper.load_model(model_size, device=device)
-        audio = whisper.load_audio(self.video_file_path)
+        audio = whisper.load_audio(self.audio_file_path)
         result = whisper.transcribe(model=model, audio=audio, language="en")
         text_clips_array = []
         segments = result["segments"]
@@ -131,12 +136,16 @@ class Story():
         #         text_clip = text_clip.set_start(word["start"]).set_end(word["end"]).set_position("center")
         #         text_clips_array.append(text_clip)   
 
-        original_clip = VideoFileClip(self.video_file_path)
+        original_clip = video # VideoFileClip(self.video_file_path)
 
         final_video = CompositeVideoClip([original_clip] + text_clips_array)
-        final_video.write_videofile(f"results/{self.post_id}.mp4", codec='libx264') 
+        # final_video.write_videofile(f"results/{self.post_id}.mp4", codec='libx264') 
+        print("transcribed video ", self.post_id) 
+        
+        return final_video
+        
 
-    def add_background_music(self):
+    def add_background_music(self, video):
         bg_music_list = ["music/snowfall.mp3", "music/fallen_down.mp3"]
         random_index = random.randint(0, len(bg_music_list) - 1)
         background_music_path = bg_music_list[random_index]
@@ -155,7 +164,7 @@ class Story():
         start = random.uniform(0.0, music_duration - audio_duration)
         end = audio_duration + start
 
-        video = VideoFileClip(f"results/{self.post_id}.mp4")
+        # video = VideoFileClip(f"results/{self.post_id}.mp4")
         
         audio_bg_subclip = AudioFileClip(background_music_path).subclip(start, end)
         audio_bg_subclip = audio_bg_subclip.volumex(0.14)
@@ -163,7 +172,10 @@ class Story():
         final_audio = CompositeAudioClip([video.audio, audio_bg_subclip])
         
         final_video = video.set_audio(final_audio)
-        final_video.write_videofile(self.video_file_path)
+        # final_video.write_videofile(self.video_file_path)
+        
+        print("added background music ", self.post_id)
+        return final_video
 
     def generate_intro_clip(self):
         image_header = Image.open("header.png")
@@ -207,33 +219,25 @@ class Story():
         bordered_image.paste(new_image, (border_size, border_size))
         
         bordered_image.save(self.image_file_path)
-        
-        # border radius code if needed
-        # # Create a mask with rounded corners
-        # mask = Image.new("L", new_size, 0)
-        # draw = ImageDraw.Draw(mask)
-        # draw.rounded_rectangle((0, 0, new_size[0], new_size[1]), border_radius, fill=255)
-        
-        # # Apply the mask to the image
-        # rounded_bordered_image = ImageOps.fit(bordered_image, mask.size, centering=(0.5, 0.5))
-        # rounded_bordered_image.putalpha(mask)
-
-        # # Save the result to the same file path
-        # rounded_bordered_image.save(self.image_file_path, format="PNG")
 
         audio_title_duration = librosa.get_duration(filename="title.mp3")
 
         image_clip = ImageClip(img=self.image_file_path).set_duration(audio_title_duration + 0.25)
         image_clip.write_videofile("intro_clip.mp4", fps=24)
+        
+        print("generated intro clip ", self.post_id) 
     
-    def overlay_intro_clip(self):
-        main_video = VideoFileClip(self.video_file_path)
+    def overlay_intro_clip(self, video):
+        main_video = video # VideoFileClip(self.video_file_path)
         intro_clip = VideoFileClip("intro_clip.mp4")
         composite_clip = CompositeVideoClip([main_video, intro_clip.set_position(('center', 'center'))])
         composite_clip.write_videofile(f"results/{self.post_id}.mp4")
+        
+        print("overlayed intro clip ", self.post_id) 
     
     def send_video_via_email(self, recipient_email):
-
+        print("Sending email ...")
+        
         sender_email = os.environ.get("EMAIL_SENDER")
         sender_password = os.environ.get("APPLICATION_SPECIFIC_GMAIL_PASSWORD")
         subject = f'Reddit Story Video #{self.post_id}'

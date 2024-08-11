@@ -22,7 +22,10 @@ def cleanText(text):
     # Remove any leading/trailing whitespace and excess whitespace
     text = re.sub(r'\s+', ' ', text).strip()
 
-    return text.strip()
+    text = text.replace("y/o", "years-old")
+    text = text.replace("Y/O", "years-old")
+    
+    return text
 
 def containsMultipleParts(text):
     # Define the pattern to match variations of "Part X" at the end of the string
